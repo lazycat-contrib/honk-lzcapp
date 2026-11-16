@@ -12,10 +12,8 @@ application:
 services:
   honk:
     # upstream: ghcr.io/daeuniverse/honk:0.1.0-beta.6
-    # 镜像模式（delivery.mode=mirror）发布到喵喵商店时，Action 会把此行改写为
-    # ghcr.1ms.run/daeuniverse/honk:<tag> 并要求 digest 匹配
-    # 本地测试镜像: registry.lazycat.cloud/czyt/daeuniverse/honk:50608c258578776f
-    image: registry.lazycat.cloud/czyt/daeuniverse/honk:50608c258578776f
+    # 镜像模式（delivery.mode=mirror）发布到喵喵商店时，Action 校验 digest 一致。
+    image: ghcr.1ms.run/daeuniverse/honk:0.1.0-beta.6
     # eBPF 数据面必须宿主网络（compose_override 同步声明 network_mode: host）
     network_mode: host
     # 上游 ENTRYPOINT ["honk-core", "--config", "/etc/honk/config.dae"]，无需覆盖 command

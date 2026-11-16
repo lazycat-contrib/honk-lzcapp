@@ -25,7 +25,9 @@ images:
     target: service
     service: honk
     source: ghcr.io/daeuniverse/honk
-    channel: stable
+    # 上游全是 SemVer prerelease（0.1.0-beta.N），须用 beta 通道而非 stable，
+    # 否则 stable 通道按"无 prerelease 后缀"过滤会报 VERSION_NOT_FOUND
+    channel: beta
     tag_regex: '^0\.[0-9]+\.[0-9]+-(beta|alpha|rc)\.[0-9]+$'
     delivery:
       # 喵喵商店镜像模式：经 ghcr.1ms.run 加速直连上游，要求 digest 与上游一致
