@@ -1,0 +1,4 @@
+*.lpk
+.lazycat-build/
+.lazycat-release.env
+.lazycat-version-state.json

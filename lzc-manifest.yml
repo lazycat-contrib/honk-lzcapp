@@ -1,0 +1,128 @@
+application:
+  subdomain: honk
+  multi_instance: false
+  # honk 以特权容器 + 宿主网络运行（eBPF 数据面必须接管宿主机流量）：
+  # privileged / pid 由 lzc-build.yml compose_override 注入，network_mode 用平台原生字段。
+  # host 网络下网关容器无法直达 127.0.0.1，经 host.lzcapp 访问宿主监听。
+  public_path:
+    - /
+  upstreams:
+    - location: /
+      backend: http://host.lzcapp:9527/
+services:
+  honk:
+    # upstream: ghcr.io/daeuniverse/honk:0.1.0-beta.6
+    # 镜像模式（delivery.mode=mirror）发布到喵喵商店时，Action 会把此行改写为
+    # ghcr.1ms.run/daeuniverse/honk:<tag> 并要求 digest 匹配
+    # 本地测试镜像: registry.lazycat.cloud/czyt/daeuniverse/honk:50608c258578776f
+    image: registry.lazycat.cloud/czyt/daeuniverse/honk:50608c258578776f
+    # eBPF 数据面必须宿主网络（compose_override 同步声明 network_mode: host）
+    network_mode: host
+    # 上游 ENTRYPOINT ["honk-core", "--config", "/etc/honk/config.dae"]，无需覆盖 command
+    environment:
+      # 宿主机无 /etc/localtime 挂载时按上游文档用 POSIX TZ 串跟随东八区
+      - TZ=CST-8
+    setup_script: |
+      # 首次启动生成配置（沿用上游 install/docker.dae 的 direct-only 默认 + doona UI）。
+      # 用户改 /lzcapp/var/etc/config.dae 或在 doona 界面编辑后重启应用生效。
+      if [ ! -f /lzcapp/var/etc/config.dae ]; then
+        mkdir -p /lzcapp/var/etc
+        {
+          echo 'global {'
+          echo '    # 宿主网络命名空间内运行：wan_interface 拦截宿主机本机发起的 TCP/UDP。'
+          echo "    # 需要把懒猫微服作为局域网网关给其他设备用时，追加 lan_interface: '<网桥名>'"
+          echo '    # （盒子通常为 br0 / br-lan，用 ip addr 确认）。'
+          echo '    wan_interface: auto'
+          echo '    log_level: info'
+          echo '    dial_mode: domain'
+          echo '    allow_insecure: false'
+          echo '    auto_config_kernel_parameter: true'
+          echo "    data_dir: '/var/lib/honk'"
+          echo "    log_file: 'honk.log'"
+          echo "    tcp_check_url: 'https://www.gstatic.com/generate_204'"
+          echo '    tcp_check_http_method: HEAD'
+          echo "    udp_check_dns: 'dns.google.com:53,8.8.8.8,2001:4860:4860::8888'"
+          echo '    check_interval: 30s'
+          echo '    check_tolerance: 50ms'
+          echo '    # 代理服务器使用域名时，加独立 bootstrap 解析器避免递归 DNS 劫持：'
+          echo "    # bootstrap_resolver: '223.5.5.5:53'"
+          echo '}'
+          echo ''
+          echo '# 示例：添加节点并把 routing.fallback 改为 proxy 后开始代理'
+          echo '# node {'
+          echo "#     my-node: 'socks5://user:password@server.example.com:1080'"
+          echo '# }'
+          echo '# group {'
+          echo '#     proxy {'
+          echo "#         filter: name('my-node')"
+          echo '#         policy: fixed(0)'
+          echo '#     }'
+          echo '# }'
+          echo ''
+          echo 'routing {'
+          echo '    fallback: direct'
+          echo '}'
+          echo ''
+          echo 'experimental {'
+          echo '    native_api {'
+          echo '        enabled: true'
+          echo '        # 宿主网络下网关容器经 host.lzcapp 访问，须绑定通配地址；'
+          echo '        # 已启用密码登录（password_auth），非 loopback 监听有认证保护'
+          echo "        listen: '0.0.0.0:9527'"
+          echo '        password_auth: true'
+          echo '        config_write: true'
+          echo "        ui: 'embedded'"
+          echo '        # 经懒猫网关访问时 Host 头是应用域名或 host.lzcapp，放行 Host 与 Origin 检查'
+          echo "        allowed_hosts: '{{.S.AppDomain}}', 'host.lzcapp', 'host.lzcapp:9527'"
+          echo "        allow_origins: 'https://{{.S.AppDomain}}'"
+          echo '    }'
+          echo '}'
+        } > /lzcapp/var/etc/config.dae
+      fi
+      # 用持久化配置覆盖镜像内置的仅直连配置（容器内路径，每次启动重新复制）
+      cp -f /lzcapp/var/etc/config.dae /etc/honk/config.dae
+      # eBPF map 必须 pin 到 bpffs（上游文档要求）；LPK 容器内未自动挂载，这里挂上
+      mkdir -p /sys/fs/bpf
+      mountpoint -q /sys/fs/bpf || mount -t bpf bpf /sys/fs/bpf
+    healthcheck:
+      # /ui/ 静态资源公开（无需认证），busybox wget 探测；Host 为 127.0.0.1 字面量被通配绑定接受
+      test:
+        - CMD-SHELL
+        - wget -q --spider http://127.0.0.1:9527/ui/ || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    binds:
+      # 运行时状态：honk.db（管理员账号、订阅缓存）、日志、geodata 更新、配置
+      - /lzcapp/var/data:/var/lib/honk
+      - /lzcapp/var/etc:/lzcapp/var/etc
+usage: |
+  honk 是实验性 eBPF 透明代理引擎（Linux）：数据面遵循 dae 设计，出站分组与 Clash API 风格源自 sing-box。
+  它通过 eBPF 接管懒猫微服宿主机的网络流量，按路由规则分流到代理节点或直连，并内置 doona Web 管理界面。
+
+  【重要前提】
+  - 需要懒猫微服内核 6.12+（盒子 SSH 执行 uname -r 确认）。内核不满足时应用无法启动，属上游硬性要求。
+  - 应用以特权模式 + 宿主网络运行（与上游官方 Docker 部署方式相同），对宿主机的改动和直接安装 honk 一样，没有任何隔离。
+    首次部署会改变网络钩子、命名空间与 sysctl。上游处于 alpha 阶段，请保留其他管理途径（SSH）以防万一。
+  - 与 dae / daed 互斥：同一台机器只能运行一个（共用同一套 eBPF 挂接点）。
+
+  【首次使用】
+  1. 打开应用进入 doona 管理界面，首次访问创建管理员账号（保存在应用数据目录，升级后保留）。
+  2. 默认配置为全直连（routing.fallback: direct），不改变任何流量走向。开始代理：在 doona 界面
+     （或编辑应用数据目录 var/etc/config.dae，注释里有 node/group 示例）添加节点，把 fallback 改为
+     proxy，重启应用生效。代理服务器用域名时建议加 bootstrap_resolver。
+  3. 默认只接管宿主机本机流量（wan_interface: auto）。要把懒猫微服作为局域网网关给其他设备用，
+     在 global 段加 lan_interface: '<网桥名>'（盒子通常为 br0 / br-lan，用 ip addr 确认）。
+  4. 修改配置文件后重启应用；在 doona 界面内编辑（config_write 已开启）可保存并触发 reload，无需重启。
+
+  【Web UI】
+  doona（原生 API，监听 9527，带管理员密码登录）：流量观测、诊断、配置编辑。
+  也兼容 Clash 面板（如 zashboard）：在配置 experimental 段加 clash_api 块即可。
+  出于网关访问需要，API 监听在宿主机所有网卡的 9527 端口（局域网内设备可直接访问，有密码保护）；
+  如不接受局域网暴露，可把 listen 改回 '127.0.0.1:9527'（此时应用域名入口不可用，需在盒子上本地访问）。
+
+  【说明】
+  - 上游为 GPL-3.0 开源：https://github.com/daeuniverse/honk （Early alpha，1.0 前可能有破坏性变更）。
+  - GeoIP / Geosite 数据已内置镜像（构建时 SHA256 校验）。
+  - 数据（管理员账号、订阅缓存、日志、配置）持久化在应用数据目录。

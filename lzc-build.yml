@@ -1,0 +1,17 @@
+manifest: ./lzc-manifest.yml
+pkgout: ./
+icon: ./icon.png
+# honk 需要特权容器 + 宿主网络 + PID 命名空间（eBPF 数据面接管宿主机流量）。
+# 上游官方 docker-compose.yml 即如此部署（privileged + network_mode host + pid host + /sys）。
+# 注意：/sys bind mount 不能带——挂载进来的 /sys 是宿主 sysfs 静态视图，
+# 容器内新建的 dae0/daens 接口不会出现在其中，honk 读 dae0 MAC 会 ENOENT 退出；
+# 容器原生 sysfs（privileged 模式自动获得）反而能看到实时接口。bpffs 由 setup_script 挂载。
+compose_override:
+  services:
+    honk:
+      privileged: true
+      # network_mode: host 由 manifest services.honk.network_mode 声明（平台原生字段）；
+      # 这里补 pid 命名空间（上游 compose 需要，用于进程观测）
+      pid: host
+      # 上游 compose 还挂 /run/honk-core.lock 与原生实例互斥；懒猫盒子不跑原生 honk，
+      # 且宿主机无该文件时 Docker 会把挂载点建成目录导致启动失败，故省略。

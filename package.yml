@@ -1,0 +1,21 @@
+package: community.lazycat.app.honk
+version: 0.1.0
+name: honk
+description: "Experimental eBPF transparent proxy engine for Linux, following dae's datapath and sing-box's outbound groups. Manages host traffic with routing rules, node groups and a doona web UI. Runs privileged with host networking."
+min_os_version: 1.5.0
+homepage: https://github.com/daeuniverse/honk
+author: daeuniverse
+license: GPL-3.0-only
+permissions:
+  required:
+    - net.internet
+locales:
+  zh:
+    name: "honk"
+    description: "实验性 eBPF 透明代理引擎（Linux），数据面遵循 dae、出站分组与 Clash API 风格源自 sing-box。通过路由规则与节点分组接管宿主机 TCP/UDP 流量，内置 doona Web 管理界面。以特权模式 + 宿主网络运行，要求内核 6.12+。"
+  zh_CN:
+    name: "honk"
+    description: "实验性 eBPF 透明代理引擎（Linux），数据面遵循 dae、出站分组与 Clash API 风格源自 sing-box。通过路由规则与节点分组接管宿主机 TCP/UDP 流量，内置 doona Web 管理界面。以特权模式 + 宿主网络运行，要求内核 6.12+。"
+  en:
+    name: "honk"
+    description: "Experimental eBPF transparent proxy engine for Linux, following dae's datapath and sing-box's outbound groups. Manages host traffic with routing rules, node groups and a doona web UI. Runs privileged with host networking."

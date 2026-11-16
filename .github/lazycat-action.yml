@@ -1,0 +1,42 @@
+version: 1
+
+project:
+  root: .
+  build_config: lzc-build.yml
+  package_file: package.yml
+  output: .lazycat-build/honk.lpk
+  target_arch: amd64
+
+update:
+  strategy: publish
+  allow_downgrade: false
+  version_source:
+    type: image
+    image: honk
+
+build:
+  toolchains: []
+  run_buildscript: false
+
+images:
+  # 主服务：honk 透明代理引擎（ghcr）。上游发 v0.1.0-beta.N SemVer prerelease tag；
+  # 排除 latest / edge / debug* / sha256-* 等非正式 tag
+  - id: honk
+    target: service
+    service: honk
+    source: ghcr.io/daeuniverse/honk
+    channel: stable
+    tag_regex: '^0\.[0-9]+\.[0-9]+-(beta|alpha|rc)\.[0-9]+$'
+    delivery:
+      # 喵喵商店镜像模式：经 ghcr.1ms.run 加速直连上游，要求 digest 与上游一致
+      mode: mirror
+      require_digest_match: true
+
+stores:
+  private:
+    enabled: true
+    skip_if_version_exists: true
+    name: honk
+    summary: "honk 懒猫微服打包：实验性 eBPF 透明代理引擎（dae 语法 + sing-box 分组，GPL-3.0，要求内核 6.12+，特权运行）。"
+  official:
+    enabled: false
