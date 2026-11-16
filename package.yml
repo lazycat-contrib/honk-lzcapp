@@ -1,5 +1,5 @@
 package: community.lazycat.app.honk
-version: 0.1.0
+version: 0.1.0-beta.6
 name: honk
 description: "Experimental eBPF transparent proxy engine for Linux, following dae's datapath and sing-box's outbound groups. Manages host traffic with routing rules, node groups and a doona web UI. Runs privileged with host networking."
 min_os_version: 1.5.0
