@@ -5,7 +5,7 @@ description: "Experimental eBPF transparent proxy engine for Linux, following da
 min_os_version: 1.5.0
 homepage: https://github.com/daeuniverse/honk
 author: daeuniverse
-license: GPL-3.0-only
+license: GPL-3.0
 permissions:
   required:
     - net.internet
